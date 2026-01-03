@@ -169,24 +169,25 @@ end
 ```
 
 ## Configuration
+
 ```ruby
 # config/initializers/correlation_tracker.rb
 CorrelationTracker.configure do |config|
   # Service name (appears in logs)
   config.service_name = 'my-service'
-  
+
   # HTTP headers
-  config.header_name = 'X-Correlation-ID'
+  config.header_name        = 'X-Correlation-ID'
   config.parent_header_name = 'X-Parent-Correlation-ID'
-  config.fallback_headers = ['X-Request-ID', 'X-Trace-ID']
-  
+  config.fallback_headers   = %w[X-Request-ID X-Trace-ID]
+
   # ID generation
-  config.id_generator = -> { SecureRandom.uuid_v7 }
-  
+  config.uuid_version = 7
+
   # Kafka headers
-  config.kafka_header_key = 'correlation_id'
+  config.kafka_header_key        = 'correlation_id'
   config.kafka_parent_header_key = 'parent_correlation_id'
-  
+
   # Enable/disable integrations
   config.enable_integration(:action_controller)
   config.enable_integration(:active_job)
@@ -195,10 +196,64 @@ CorrelationTracker.configure do |config|
   config.enable_integration(:kafka)
   config.enable_integration(:http_clients)
   config.enable_integration(:opentelemetry) # optional
-  
+
   # Validation
   config.validate_uuid_format = true
 end
+```
+
+## UUID Version Support
+
+CorrelationTracker supports both UUID v4 and UUID v7:
+
+### UUID v4 (Random)
+- Default version
+- Cryptographically random
+- No time information
+- Compatible with all Ruby versions
+
+### UUID v7 (Time-ordered)
+- Sortable by creation time
+- Contains millisecond-precision timestamp
+- Better for database indexing
+- Requires Ruby 3.3+ (or uses fallback implementation)
+
+### Configuration
+```ruby
+# Use UUID v7
+CorrelationTracker.configure do |config|
+  config.uuid_version = 7
+end
+
+# Or use UUID v4 (default)
+CorrelationTracker.configure do |config|
+  config.uuid_version = 4
+end
+```
+
+### Benefits of UUID v7
+
+1. **Time-ordered**: UUIDs are sortable by creation time
+2. **Database-friendly**: Better B-tree index performance
+3. **Debuggable**: Can extract timestamp from ID
+4. **Efficient**: Reduces index fragmentation
+
+### Utility Methods
+```ruby
+# Validate specific version
+UuidValidator.valid?(uuid, version: 7)  # => true/false
+
+# Detect version
+UuidValidator.version(uuid)  # => 7
+
+# Extract timestamp (v7 only)
+UuidValidator.extract_timestamp(uuid)  # => Time object
+
+# Compare UUIDs (v7 uses timestamp)
+UuidValidator.compare(uuid1, uuid2)  # => -1, 0, or 1
+
+# Generate specific version
+UuidValidator.generate(7)  # => UUID v7 string
 ```
 
 ## Testing

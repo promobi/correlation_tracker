@@ -9,9 +9,8 @@ CorrelationTracker.configure do |config|
   config.fallback_headers = %w[X-Request-ID X-Trace-ID]
 
   # ID generation
-  # Default: SecureRandom.uuid (UUID v4)
-  # For sortable IDs, consider UUID v7:
-  config.id_generator = -> { SecureRandom.uuid_v7 } # Ruby 3.3+
+  # Use UUID v7 for time-ordered correlation IDs
+  config.uuid_version = 7
 
   # Kafka configuration (if using Kafka)
   config.kafka_header_key = 'correlation_id'
