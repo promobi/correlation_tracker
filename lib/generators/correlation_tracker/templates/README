@@ -1,0 +1,42 @@
+# lib/generators/correlation_tracker/templates/README
+===============================================================================
+  CorrelationTracker has been installed!
+===============================================================================
+
+  The initializer has been created at:
+                                     config/initializers/correlation_tracker.rb
+
+Next steps:
+
+1. Review and customize the configuration
+2. Restart your Rails server
+3. Correlation IDs will automatically be tracked across:
+                                                   - HTTP requests
+- Background jobs (ActiveJob, Sidekiq)
+- Kafka messages
+- Outbound HTTP calls
+
+Usage examples:
+
+        # Get current correlation ID
+        CorrelationTracker.current_id
+
+# Manually set correlation context
+CorrelationTracker.set(correlation_id: 'custom-id', origin_type: 'cron')
+
+# Execute code with temporary correlation
+CorrelationTracker.with_correlation(correlation_id: 'temp-id') do
+  # your code here
+end
+
+For Faraday HTTP clients, add the middleware:
+
+                                    connection = Faraday.new do |f|
+  f.request :correlation_tracker
+  f.adapter Faraday.default_adapter
+end
+
+For more information, visit:
+  https://github.com/promobi/correlation_tracker
+
+===============================================================================
