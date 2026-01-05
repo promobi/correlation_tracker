@@ -56,9 +56,17 @@ CorrelationTracker.set(
   job_name: 'daily_report'
 )
 
-# Execute with temporary correlation
+# Execute with temporary correlation (automatically restores previous context)
 CorrelationTracker.with_correlation(correlation_id: 'temp-id') do
   # Your code here
+  # All context (including metadata) automatically restored after block
+end
+
+# Or use the more intuitive alias:
+CorrelationTracker.track_correlation do
+  # Auto-generates new correlation ID
+  # Your code here
+  # Previous context fully restored when done
 end
 ```
 
@@ -162,10 +170,53 @@ namespace :reports do
       origin_type: 'cron',
       job_name: 'daily_report'
     )
-    
+
     ReportGenerator.generate
   end
 end
+```
+
+### Temporary Correlation Context
+
+Use `track_correlation` (or `with_correlation`) to execute code with a temporary correlation context. The previous context is fully restored after the block, including all metadata and custom attributes.
+
+```ruby
+# Basic usage - auto-generates correlation ID
+CorrelationTracker.track_correlation do
+  # Code here runs with new correlation ID
+  PaymentService.process_payment(order)
+end
+# Previous correlation context restored
+
+# With custom attributes
+CorrelationTracker.track_correlation(
+  correlation_id: 'batch-123',
+  origin_type: 'batch',
+  user_id: 42
+) do
+  # Process with custom correlation
+  BatchProcessor.run
+end
+
+# Nested contexts work perfectly
+CorrelationTracker.track_correlation(correlation_id: 'outer') do
+  # Outer context
+
+  CorrelationTracker.track_correlation(correlation_id: 'inner') do
+    # Inner context
+  end
+
+  # Outer context automatically restored
+end
+
+# Exception handling - context always restored
+CorrelationTracker.set(user_id: 100)
+
+CorrelationTracker.track_correlation(user_id: 200) do
+  raise "Something went wrong"
+end rescue nil
+
+CorrelationTracker::Context.user_id  # => 100 (restored despite exception)
 ```
 
 ## Configuration

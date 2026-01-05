@@ -228,18 +228,15 @@ module CorrelationTracker
     #     # Executes with new UUID and origin_type 'batch'
     #   end
     def with_correlation(correlation_id: nil, **options)
-      previous_id = current_id
-      previous_parent = parent_id
-      previous_origin = origin_type
-      previous_metadata = Context.attributes.dup
+      previous_state = Context.attributes.dup
 
       set(correlation_id: correlation_id, **options)
       yield
     ensure
-      Context.correlation_id = previous_id
-      Context.parent_correlation_id = previous_parent
-      Context.origin_type = previous_origin
+      restore_context_state(previous_state)
     end
+
+    alias track_correlation with_correlation
 
     # Adds custom metadata to the current correlation context
     #
@@ -278,6 +275,48 @@ module CorrelationTracker
     #   # Logs: {"message":"User logged in","correlation_id":"...","user_id":123}
     def logger
       @logger ||= Utilities::Logger.new
+    end
+
+    private
+
+    # Restores the correlation context to a previously saved state
+    #
+    # This method is used internally by {#with_correlation} to ensure that
+    # all context attributes are properly restored after the block executes.
+    #
+    # @param saved_state [Hash] the previously saved context state
+    # @return [void]
+    #
+    # @api private
+    def restore_context_state(saved_state)
+      Context.reset
+
+      # Define known predefined attributes
+      known_attributes = [
+        :correlation_id, :parent_correlation_id, :origin_type,
+        :user_id, :customer_id, :job_name, :webhook_source,
+        :external_request_id, :email_type, :device_id, :task_type,
+        :kafka_topic, :kafka_partition, :kafka_offset
+      ]
+
+      # Separate metadata from predefined attributes
+      metadata_hash = {}
+
+      saved_state.each do |key, value|
+        next if value.nil?
+
+        if known_attributes.include?(key)
+          # Restore predefined attribute
+          setter = "#{key}="
+          Context.public_send(setter, value) if Context.respond_to?(setter)
+        else
+          # Collect metadata
+          metadata_hash[key] = value
+        end
+      end
+
+      # Restore metadata as a hash
+      Context.metadata = metadata_hash unless metadata_hash.empty?
     end
   end
 end

@@ -38,9 +38,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `track_correlation` method as an alias for `with_correlation` for more intuitive API
+
+### Fixed
+- **BREAKING BUG FIX**: `with_correlation` now properly restores ALL context attributes after block execution, not just the three core attributes (correlation_id, parent_correlation_id, origin_type)
+  - Previously, attributes like user_id, customer_id, job_name, and custom metadata would persist after the block, causing context pollution
+  - Now all attributes and metadata are fully restored to their previous state, even when exceptions occur
+  - Nested blocks work correctly with proper context restoration at each level
+  - This fix ensures true isolation for temporary correlation contexts
+
 ### Planned
 - gRPC integration
-- GraphQL integration  
+- GraphQL integration
 - AWS Lambda integration
 - Azure Functions integration
 - Additional HTTP client integrations

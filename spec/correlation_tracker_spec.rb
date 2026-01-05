@@ -178,6 +178,154 @@ RSpec.describe CorrelationTracker do
       expect(result_id).not_to be_nil
       expect(result_id).to match(/\A[0-9a-f-]{36}\z/i)
     end
+
+    it 'restores all attributes after block, not just core ones' do
+      CorrelationTracker.set(
+        correlation_id: 'id-1',
+        parent_id: 'parent-1',
+        origin_type: 'origin-1',
+        user_id: 100,
+        customer_id: 'cust-1',
+        job_name: 'OriginalJob'
+      )
+
+      CorrelationTracker.with_correlation(
+        correlation_id: 'id-2',
+        parent_id: 'parent-2',
+        origin_type: 'origin-2',
+        user_id: 200,
+        customer_id: 'cust-2',
+        job_name: 'TemporaryJob'
+      ) do
+        # Verify changes inside block
+        expect(CorrelationTracker.current_id).to eq('id-2')
+        expect(CorrelationTracker.parent_id).to eq('parent-2')
+        expect(CorrelationTracker.origin_type).to eq('origin-2')
+        expect(CorrelationTracker::Context.user_id).to eq(200)
+        expect(CorrelationTracker::Context.customer_id).to eq('cust-2')
+        expect(CorrelationTracker::Context.job_name).to eq('TemporaryJob')
+      end
+
+      # Verify ALL attributes are restored
+      expect(CorrelationTracker.current_id).to eq('id-1')
+      expect(CorrelationTracker.parent_id).to eq('parent-1')
+      expect(CorrelationTracker.origin_type).to eq('origin-1')
+      expect(CorrelationTracker::Context.user_id).to eq(100)
+      expect(CorrelationTracker::Context.customer_id).to eq('cust-1')
+      expect(CorrelationTracker::Context.job_name).to eq('OriginalJob')
+    end
+
+    it 'restores metadata after block' do
+      CorrelationTracker.set(correlation_id: 'id-1')
+      CorrelationTracker.add_metadata(:field1, 'value1')
+      CorrelationTracker.add_metadata(:field2, 'value2')
+
+      CorrelationTracker.with_correlation(correlation_id: 'id-2') do
+        # Modify existing metadata
+        CorrelationTracker.add_metadata(:field1, 'modified')
+        # Add new metadata
+        CorrelationTracker.add_metadata(:field3, 'new')
+
+        hash = CorrelationTracker.to_h
+        expect(hash[:field1]).to eq('modified')
+        expect(hash[:field3]).to eq('new')
+      end
+
+      # Verify original metadata is restored
+      hash = CorrelationTracker.to_h
+      expect(hash[:field1]).to eq('value1')
+      expect(hash[:field2]).to eq('value2')
+      expect(hash[:field3]).to be_nil
+    end
+
+    it 'does not persist attributes set inside block that were not set before' do
+      CorrelationTracker.reset!
+      CorrelationTracker.set(correlation_id: 'id-1')
+
+      CorrelationTracker.with_correlation(correlation_id: 'id-2') do
+        # Set attribute that wasn't set before
+        CorrelationTracker.set(user_id: 100, customer_id: 'cust-1')
+        expect(CorrelationTracker::Context.user_id).to eq(100)
+      end
+
+      # After block: these attributes should be nil (not persisted)
+      expect(CorrelationTracker.current_id).to eq('id-1')
+      expect(CorrelationTracker::Context.user_id).to be_nil
+      expect(CorrelationTracker::Context.customer_id).to be_nil
+    end
+
+    it 'handles nested with_correlation blocks correctly' do
+      CorrelationTracker.set(correlation_id: 'outer', user_id: 1)
+
+      CorrelationTracker.with_correlation(correlation_id: 'inner1', user_id: 2) do
+        expect(CorrelationTracker.current_id).to eq('inner1')
+        expect(CorrelationTracker::Context.user_id).to eq(2)
+
+        CorrelationTracker.with_correlation(correlation_id: 'inner2', user_id: 3) do
+          expect(CorrelationTracker.current_id).to eq('inner2')
+          expect(CorrelationTracker::Context.user_id).to eq(3)
+        end
+
+        # Should restore to inner1 state
+        expect(CorrelationTracker.current_id).to eq('inner1')
+        expect(CorrelationTracker::Context.user_id).to eq(2)
+      end
+
+      # Should restore to outer state
+      expect(CorrelationTracker.current_id).to eq('outer')
+      expect(CorrelationTracker::Context.user_id).to eq(1)
+    end
+
+    it 'restores all context even when block raises exception' do
+      CorrelationTracker.set(
+        correlation_id: 'id-1',
+        user_id: 100,
+        customer_id: 'cust-1'
+      )
+
+      expect {
+        CorrelationTracker.with_correlation(
+          correlation_id: 'id-2',
+          user_id: 200,
+          customer_id: 'cust-2'
+        ) do
+          raise 'test error'
+        end
+      }.to raise_error('test error')
+
+      # All attributes should be restored despite exception
+      expect(CorrelationTracker.current_id).to eq('id-1')
+      expect(CorrelationTracker::Context.user_id).to eq(100)
+      expect(CorrelationTracker::Context.customer_id).to eq('cust-1')
+    end
+  end
+
+  describe '.track_correlation' do
+    it 'is an alias for with_correlation' do
+      expect(CorrelationTracker.method(:track_correlation)).to eq(
+        CorrelationTracker.method(:with_correlation)
+      )
+    end
+
+    it 'works identically to with_correlation' do
+      CorrelationTracker.set(
+        correlation_id: 'id-1',
+        user_id: 100
+      )
+
+      result = CorrelationTracker.track_correlation(
+        correlation_id: 'id-2',
+        user_id: 200
+      ) do
+        expect(CorrelationTracker.current_id).to eq('id-2')
+        expect(CorrelationTracker::Context.user_id).to eq(200)
+        'result'
+      end
+
+      expect(result).to eq('result')
+      expect(CorrelationTracker.current_id).to eq('id-1')
+      expect(CorrelationTracker::Context.user_id).to eq(100)
+    end
   end
 
   describe '.to_h' do
