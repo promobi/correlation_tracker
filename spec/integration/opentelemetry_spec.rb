@@ -1,5 +1,6 @@
 # spec/integrations/opentelemetry_spec.rb
 require 'spec_helper'
+require 'correlation_tracker/integrations/opentelemetry'
 
 RSpec.describe CorrelationTracker::Integrations::OpenTelemetry do
   describe '.setup' do

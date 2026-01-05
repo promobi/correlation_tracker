@@ -64,7 +64,9 @@ module CorrelationTracker
         private
 
         def log_message_consumption(message)
-          Rails.logger.info(
+          return unless logger
+
+          logger.info(
             message: "Kafka message consumed",
             topic: message.topic,
             partition: message.partition,
@@ -75,7 +77,9 @@ module CorrelationTracker
         end
 
         def log_message_processed(message)
-          Rails.logger.info(
+          return unless logger
+
+          logger.info(
             message: "Kafka message processed",
             topic: message.topic,
             partition: message.partition,
@@ -85,7 +89,9 @@ module CorrelationTracker
         end
 
         def log_message_error(message, error)
-          Rails.logger.error(
+          return unless logger
+
+          logger.error(
             message: "Kafka message processing failed",
             topic: message.topic,
             partition: message.partition,
@@ -95,6 +101,10 @@ module CorrelationTracker
             backtrace: error.backtrace.first(10),
             **CorrelationTracker.to_h
           )
+        end
+
+        def logger
+          defined?(Rails) ? Rails.logger : nil
         end
       end
 

@@ -1,6 +1,13 @@
 # spec/integrations/http_clients/faraday_spec.rb
 require 'spec_helper'
 
+begin
+  require 'faraday'
+  require 'correlation_tracker/integrations/http_clients/faraday'
+rescue LoadError
+  # Faraday not available
+end
+
 RSpec.describe CorrelationTracker::Integrations::HttpClients::FaradayMiddleware do
   let(:app) { double('app') }
   let(:middleware) { described_class.new(app) }

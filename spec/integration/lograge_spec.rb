@@ -1,5 +1,6 @@
 # spec/integrations/lograge_spec.rb
 require 'spec_helper'
+require 'correlation_tracker/integrations/lograge'
 
 RSpec.describe CorrelationTracker::Integrations::Lograge do
   describe '.setup' do

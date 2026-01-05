@@ -1,5 +1,6 @@
 # spec/integrations/http_clients/httparty_spec.rb
 require 'spec_helper'
+require 'correlation_tracker/integrations/http_clients/httparty'
 
 RSpec.describe CorrelationTracker::Integrations::HttpClients::HTTPartyIntegration do
   before do

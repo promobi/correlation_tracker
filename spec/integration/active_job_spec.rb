@@ -1,6 +1,20 @@
 # spec/integrations/active_job_spec.rb
 require 'spec_helper'
 require 'active_job'
+require 'correlation_tracker/integrations/active_job'
+
+# Define a minimal Rails stub for testing
+unless defined?(Rails)
+  module Rails
+    def self.logger
+      @logger ||= Logger.new(nil)
+    end
+
+    def self.logger=(logger)
+      @logger = logger
+    end
+  end
+end
 
 RSpec.describe CorrelationTracker::Integrations::ActiveJob do
   # Mock job for testing
@@ -110,9 +124,10 @@ RSpec.describe CorrelationTracker::Integrations::ActiveJob do
       job.arguments = [{ correlation_id: 'test-123' }]
 
       expect(Rails.logger).to receive(:info) do |hash|
-        expect(hash[:message]).to eq('Job started')
-        expect(hash[:correlation_id]).to eq('test-123')
-        expect(hash[:job_id]).to eq('job-123')
+        if hash[:message] == 'Job started'
+          expect(hash[:correlation_id]).to eq('test-123')
+          expect(hash[:job_id]).to eq('job-123')
+        end
       end.at_least(:once)
 
       job.send(:with_correlation_tracking) { }

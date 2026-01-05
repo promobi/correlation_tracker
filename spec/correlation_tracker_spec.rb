@@ -28,11 +28,14 @@ RSpec.describe CorrelationTracker do
     end
 
     it 'allows setting configuration options' do
+      original_service_name = CorrelationTracker.configuration.service_name
       CorrelationTracker.configure do |config|
         config.service_name = 'test-service'
       end
 
       expect(CorrelationTracker.configuration.service_name).to eq('test-service')
+    ensure
+      CorrelationTracker.configuration.service_name = original_service_name
     end
   end
 
@@ -48,10 +51,13 @@ RSpec.describe CorrelationTracker do
     end
 
     it 'uses configured ID generator' do
+      original_generator = CorrelationTracker.configuration.id_generator
       custom_generator = -> { 'custom-id' }
       CorrelationTracker.configuration.id_generator = custom_generator
 
       expect(CorrelationTracker.generate_id).to eq('custom-id')
+    ensure
+      CorrelationTracker.configuration.id_generator = original_generator
     end
   end
 

@@ -4,6 +4,7 @@ require 'correlation_tracker'
 require 'rack/test'
 require 'active_support'
 require 'active_support/testing/time_helpers'
+require 'ostruct'
 
 # Load support files
 Dir[File.expand_path('support/**/*.rb', __dir__)].sort.each { |f| require f }

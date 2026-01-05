@@ -2,8 +2,15 @@
 require 'spec_helper'
 
 RSpec.describe CorrelationTracker::Extractors::WebhookExtractor do
+  subject { described_class.new }
+
   let(:extractor) { described_class.new }
-  let(:request) { instance_double('Rack::Request') }
+  let(:request) do
+    instance_double('Rack::Request').tap do |r|
+      allow(r).to receive(:env).and_return({})
+      allow(r).to receive(:path).and_return('/webhooks/stripe')
+    end
+  end
 
   describe '#extract' do
     it_behaves_like 'an extractor'

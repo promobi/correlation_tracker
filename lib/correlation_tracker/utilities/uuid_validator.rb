@@ -1,6 +1,24 @@
 # lib/correlation_tracker/utilities/uuid_validator.rb
 module CorrelationTracker
   module Utilities
+    # UUID validation and manipulation utility
+    #
+    # Provides methods to validate UUIDs (v1, v4, v5, v7), extract timestamps from
+    # time-ordered UUIDs (v7), generate UUIDs, and compare UUIDs.
+    #
+    # Supports strict validation (only v4/v7) and version-specific validation.
+    #
+    # @example Basic validation
+    #   UuidValidator.valid?('550e8400-e29b-41d4-a716-446655440000')
+    #   # => true
+    #
+    # @example Extract timestamp from UUID v7
+    #   timestamp = UuidValidator.extract_timestamp(uuid_v7)
+    #   # => 2024-03-15 10:30:45 UTC
+    #
+    # @example Generate UUID
+    #   UuidValidator.generate(7)  # Generate UUID v7
+    #   # => "018e8c3a-4e4a-7b3c-9a1f-123456789abc"
     class UuidValidator
       # UUID format: 8-4-4-4-12 hexadecimal characters
       UUID_REGEX = /\A[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\z/i.freeze

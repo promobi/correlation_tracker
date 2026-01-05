@@ -1,7 +1,43 @@
 # lib/correlation_tracker/integrations/sidekiq.rb
 module CorrelationTracker
   module Integrations
+    # Sidekiq integration for automatic correlation tracking
+    #
+    # Provides two middlewares:
+    # - ClientMiddleware: Attaches correlation ID when enqueueing jobs
+    # - ServerMiddleware: Restores correlation context when executing jobs
+    #
+    # These middlewares are automatically registered with Sidekiq when the gem
+    # is loaded and Sidekiq is available.
+    #
+    # @example Correlation automatically propagates through Sidekiq
+    #   # In a service or controller
+    #   CorrelationTracker.current_id  # => "550e8400-..."
+    #   MyWorker.perform_async(user_id: 123)
+    #
+    #   # Inside MyWorker#perform
+    #   CorrelationTracker.current_id  # => "550e8400-..." (same ID)
+    #   CorrelationTracker.origin_type # => "sidekiq_job"
+    #
+    # @example Manual registration (if auto-registration is disabled)
+    #   Sidekiq.configure_client do |config|
+    #     config.client_middleware do |chain|
+    #       chain.add CorrelationTracker::Integrations::Sidekiq::ClientMiddleware
+    #     end
+    #   end
+    #
+    #   Sidekiq.configure_server do |config|
+    #     config.server_middleware do |chain|
+    #       chain.add CorrelationTracker::Integrations::Sidekiq::ServerMiddleware
+    #     end
+    #   end
     module Sidekiq
+      # Client-side middleware for attaching correlation to Sidekiq jobs
+      #
+      # This middleware runs when a job is enqueued and attaches the current
+      # correlation ID to the job payload.
+      #
+      # @api private
       class ClientMiddleware
         def call(worker_class, job, queue, redis_pool)
           # Attach correlation to job payload
@@ -13,6 +49,12 @@ module CorrelationTracker
         end
       end
 
+      # Server-side middleware for restoring correlation in Sidekiq workers
+      #
+      # This middleware runs when a job is executed and restores the correlation
+      # context from the job payload. It also logs job lifecycle events.
+      #
+      # @api private
       class ServerMiddleware
         def call(worker, job, queue)
           # Set correlation context from job
@@ -39,7 +81,9 @@ module CorrelationTracker
         private
 
         def log_job_start(worker, job, queue)
-          Rails.logger.info(
+          return unless logger
+
+          logger.info(
             message: "Sidekiq job started",
             worker: worker.class.name,
             jid: job['jid'],
@@ -49,7 +93,9 @@ module CorrelationTracker
         end
 
         def log_job_completion(worker, job)
-          Rails.logger.info(
+          return unless logger
+
+          logger.info(
             message: "Sidekiq job completed",
             worker: worker.class.name,
             jid: job['jid'],
@@ -58,7 +104,9 @@ module CorrelationTracker
         end
 
         def log_job_failure(worker, job, error)
-          Rails.logger.error(
+          return unless logger
+
+          logger.error(
             message: "Sidekiq job failed",
             worker: worker.class.name,
             jid: job['jid'],
@@ -67,6 +115,10 @@ module CorrelationTracker
             backtrace: error.backtrace.first(10),
             **CorrelationTracker.to_h
           )
+        end
+
+        def logger
+          defined?(Rails) ? Rails.logger : nil
         end
       end
     end

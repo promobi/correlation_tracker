@@ -1,5 +1,6 @@
 # spec/utilities/uuid_validator_spec.rb
 require 'spec_helper'
+require 'benchmark'
 
 RSpec.describe CorrelationTracker::Utilities::UuidValidator do
   describe '.valid?' do
@@ -275,13 +276,14 @@ RSpec.describe CorrelationTracker::Utilities::UuidValidator do
     it 'extracts timestamp from generated UUID v7' do
       skip 'Ruby < 3.3' unless SecureRandom.respond_to?(:uuid_v7)
 
-      before_time = Time.now.utc
+      before_time = Time.now.utc - 0.001 # 1ms buffer for precision
       uuid = SecureRandom.uuid_v7
-      after_time = Time.now.utc
+      after_time = Time.now.utc + 0.001 # 1ms buffer for precision
 
       extracted = described_class.extract_timestamp(uuid)
 
       expect(extracted).to be_between(before_time, after_time)
+      expect(extracted).to be_a(Time)
     end
 
     it 'returns nil for UUID v4' do
@@ -480,7 +482,9 @@ RSpec.describe CorrelationTracker::Utilities::UuidValidator do
 
     it 'handles boundary timestamps in UUID v7' do
       # Test with timestamp at Unix epoch
-      uuid_epoch = '000000000000-7abc-9def-123456789abc'
+      # UUID v7 format: xxxxxxxx-xxxx-7xxx-yxxx-xxxxxxxxxxxx
+      # First 48 bits (12 hex chars) = timestamp in milliseconds
+      uuid_epoch = '00000000-0000-7abc-9def-123456789abc'
       timestamp = described_class.extract_timestamp(uuid_epoch)
 
       expect(timestamp).to be_a(Time)

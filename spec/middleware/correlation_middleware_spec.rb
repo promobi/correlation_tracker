@@ -4,52 +4,68 @@ require 'spec_helper'
 RSpec.describe CorrelationTracker::Middleware::CorrelationMiddleware do
   include Rack::Test::Methods
 
-  let(:app) { ->(env) { [200, {}, ['OK']] } }
+  let(:captured_correlation) { {} }
+  let(:app) do
+    ->(env) do
+      # Capture correlation during request processing
+      captured_correlation[:id] = CorrelationTracker.current_id
+      captured_correlation[:parent_id] = CorrelationTracker.parent_id
+      captured_correlation[:origin_type] = CorrelationTracker.origin_type
+      [200, {}, ['OK']]
+    end
+  end
   let(:middleware) { described_class.new(app) }
 
   def make_request(path = '/', headers = {})
     env = Rack::MockRequest.env_for(path, headers)
+    captured_correlation.clear
     middleware.call(env)
   end
 
   describe '#call' do
     it 'sets correlation ID from header' do
-      make_request('/', 'HTTP_X_CORRELATION_ID' => 'test-123')
+      test_uuid = '550e8400-e29b-41d4-a716-446655440000'
+      make_request('/', 'HTTP_X_CORRELATION_ID' => test_uuid)
 
-      expect(CorrelationTracker.current_id).to eq('test-123')
+      expect(captured_correlation[:id]).to eq(test_uuid)
     end
 
     it 'generates correlation ID if not present' do
       make_request('/')
 
-      expect(CorrelationTracker.current_id).not_to be_nil
-      expect(CorrelationTracker.current_id).to match(/\A[0-9a-f-]{36}\z/i)
+      expect(captured_correlation[:id]).not_to be_nil
+      expect(captured_correlation[:id]).to match(/\A[0-9a-f-]{36}\z/i)
     end
 
     it 'extracts parent correlation ID' do
+      child_uuid = '550e8400-e29b-41d4-a716-446655440001'
+      parent_uuid = '550e8400-e29b-41d4-a716-446655440002'
       make_request('/', {
-        'HTTP_X_CORRELATION_ID' => 'child-123',
-        'HTTP_X_PARENT_CORRELATION_ID' => 'parent-456'
+        'HTTP_X_CORRELATION_ID' => child_uuid,
+        'HTTP_X_PARENT_CORRELATION_ID' => parent_uuid
       })
 
-      expect(CorrelationTracker.current_id).to eq('child-123')
-      expect(CorrelationTracker.parent_id).to eq('parent-456')
+      expect(captured_correlation[:id]).to eq(child_uuid)
+      expect(captured_correlation[:parent_id]).to eq(parent_uuid)
     end
 
     it 'tries fallback headers' do
-      make_request('/', 'HTTP_X_REQUEST_ID' => 'fallback-123')
+      fallback_uuid = '550e8400-e29b-41d4-a716-446655440003'
+      make_request('/', 'HTTP_X_REQUEST_ID' => fallback_uuid)
 
-      expect(CorrelationTracker.current_id).to eq('fallback-123')
+      expect(captured_correlation[:id]).to eq(fallback_uuid)
     end
 
     it 'echoes correlation ID in response headers' do
-      status, headers, body = make_request('/', 'HTTP_X_CORRELATION_ID' => 'test-123')
+      test_uuid = '550e8400-e29b-41d4-a716-446655440004'
+      status, headers, body = make_request('/', 'HTTP_X_CORRELATION_ID' => test_uuid)
 
-      expect(headers['X-Correlation-ID']).to eq('test-123')
+      expect(headers['X-Correlation-ID']).to eq(test_uuid)
     end
 
     it 'resets context after request' do
-      make_request('/', 'HTTP_X_CORRELATION_ID' => 'test-123')
+      test_uuid = '550e8400-e29b-41d4-a716-446655440005'
+      make_request('/', 'HTTP_X_CORRELATION_ID' => test_uuid)
 
       # After request completes
       expect(CorrelationTracker.current_id).to be_nil
@@ -58,19 +74,19 @@ RSpec.describe CorrelationTracker::Middleware::CorrelationMiddleware do
     it 'determines origin type for webhooks' do
       make_request('/webhooks/stripe')
 
-      expect(CorrelationTracker.origin_type).to eq('webhook')
+      expect(captured_correlation[:origin_type]).to eq('webhook')
     end
 
     it 'determines origin type for email links' do
       make_request('/verify')
 
-      expect(CorrelationTracker.origin_type).to eq('email_link')
+      expect(captured_correlation[:origin_type]).to eq('email_link')
     end
 
     it 'defaults to http origin type' do
       make_request('/api/orders')
 
-      expect(CorrelationTracker.origin_type).to eq('api')
+      expect(captured_correlation[:origin_type]).to eq('api')
     end
 
     it 'stores correlation ID in env' do
@@ -103,14 +119,14 @@ RSpec.describe CorrelationTracker::Middleware::CorrelationMiddleware do
       it 'accepts valid UUIDs' do
         make_request('/', 'HTTP_X_CORRELATION_ID' => '550e8400-e29b-41d4-a716-446655440000')
 
-        expect(CorrelationTracker.current_id).to eq('550e8400-e29b-41d4-a716-446655440000')
+        expect(captured_correlation[:id]).to eq('550e8400-e29b-41d4-a716-446655440000')
       end
 
       it 'rejects invalid UUIDs and generates new one' do
         make_request('/', 'HTTP_X_CORRELATION_ID' => 'invalid-uuid')
 
-        expect(CorrelationTracker.current_id).not_to eq('invalid-uuid')
-        expect(CorrelationTracker.current_id).to match(/\A[0-9a-f-]{36}\z/i)
+        expect(captured_correlation[:id]).not_to eq('invalid-uuid')
+        expect(captured_correlation[:id]).to match(/\A[0-9a-f-]{36}\z/i)
       end
     end
 
@@ -126,7 +142,7 @@ RSpec.describe CorrelationTracker::Middleware::CorrelationMiddleware do
       it 'accepts any correlation ID' do
         make_request('/', 'HTTP_X_CORRELATION_ID' => 'custom-id-123')
 
-        expect(CorrelationTracker.current_id).to eq('custom-id-123')
+        expect(captured_correlation[:id]).to eq('custom-id-123')
       end
     end
   end

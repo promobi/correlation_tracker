@@ -1,6 +1,7 @@
 # spec/integrations/http_clients/net_http_spec.rb
 require 'spec_helper'
 require 'net/http'
+require 'correlation_tracker/integrations/http_clients/net_http'
 
 RSpec.describe CorrelationTracker::Integrations::HttpClients::NetHTTPExtension do
   let(:http) { Net::HTTP.new('example.com', 80) }

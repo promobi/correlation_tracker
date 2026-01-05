@@ -1,6 +1,34 @@
 # lib/correlation_tracker/integrations/active_job.rb
 module CorrelationTracker
   module Integrations
+    # ActiveJob integration for automatic correlation tracking in background jobs
+    #
+    # This module is automatically included in all ActiveJob::Base jobs when
+    # CorrelationTracker is loaded in a Rails application.
+    #
+    # It provides:
+    # - Automatic correlation ID attachment when enqueueing jobs
+    # - Correlation context restoration when executing jobs
+    # - Automatic logging of job lifecycle events (started, completed, failed)
+    # - Parent-child correlation tracking across job hierarchies
+    #
+    # @example Correlation automatically propagates to jobs
+    #   # In a controller or service
+    #   CorrelationTracker.current_id  # => "550e8400-..."
+    #   MyJob.perform_later(user_id: 123)
+    #
+    #   # Inside MyJob#perform
+    #   CorrelationTracker.current_id  # => "550e8400-..." (same ID)
+    #   CorrelationTracker.origin_type # => "background_job"
+    #
+    # @example Manual inclusion (if auto-include is disabled)
+    #   class MyJob < ActiveJob::Base
+    #     include CorrelationTracker::Integrations::ActiveJob
+    #
+    #     def perform(user_id)
+    #       # Correlation context is available here
+    #     end
+    #   end
     module ActiveJob
       extend ActiveSupport::Concern
 
@@ -73,9 +101,9 @@ module CorrelationTracker
           log_data[:error_class] = extra_data[:error].class.name
           log_data[:error_message] = extra_data[:error].message
           log_data[:backtrace] = extra_data[:error].backtrace.first(10)
-          Rails.logger.error(log_data.to_json)
+          Rails.logger.error(log_data)
         else
-          Rails.logger.info(log_data.to_json)
+          Rails.logger.info(log_data)
         end
       end
     end

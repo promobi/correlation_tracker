@@ -7,7 +7,7 @@ Gem::Specification.new do |spec|
   spec.authors       = ['ProMobi Technologies']
   spec.email         = ['noreply[at]promobitech[dot]com']
 
-  spec.summary       = 'Distributed request correlation tracking for Rails applications'
+  spec.summary       = 'Distributed request correlation tracking for Ruby on Rails applications'
   spec.description   = <<-DESC
     Track requests across microservices with correlation IDs. 
     Supports Rails, Sidekiq, Kafka, and multiple HTTP clients.
@@ -48,4 +48,5 @@ Gem::Specification.new do |spec|
   spec.add_development_dependency 'rubocop', '~> 1.50'
   spec.add_development_dependency 'rubocop-rails', '~> 2.19'
   spec.add_development_dependency 'rubocop-rspec', '~> 2.20'
+  spec.add_development_dependency 'activejob', '>= 6.0'
 end

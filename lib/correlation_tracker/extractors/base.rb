@@ -30,8 +30,8 @@ module CorrelationTracker
       end
 
       def valid_uuid?(value)
-        return false unless CorrelationTracker.configuration.validate_uuid_format
         return false if value.blank?
+        return true unless CorrelationTracker.configuration.validate_uuid_format
 
         Utilities::UuidValidator.valid?(value)
       end

@@ -1,5 +1,19 @@
 # spec/integrations/kafka_spec.rb
 require 'spec_helper'
+require 'correlation_tracker/integrations/kafka'
+
+# Define a minimal Rails stub for testing
+unless defined?(Rails)
+  module Rails
+    def self.logger
+      @logger ||= Logger.new(nil)
+    end
+
+    def self.logger=(logger)
+      @logger = logger
+    end
+  end
+end
 
 RSpec.describe CorrelationTracker::Integrations::Kafka do
   describe 'ProducerInterceptor' do

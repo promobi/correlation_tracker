@@ -68,8 +68,15 @@ RSpec.describe CorrelationTracker::Extractors::Base do
           CorrelationTracker.configuration.validate_uuid_format = true
         end
 
-        it 'returns false for validation check' do
-          expect(extractor.send(:valid_uuid?, 'anything')).to be false
+        it 'accepts any non-blank value' do
+          expect(extractor.send(:valid_uuid?, 'anything')).to be true
+          expect(extractor.send(:valid_uuid?, 'custom-id')).to be true
+          expect(extractor.send(:valid_uuid?, '123')).to be true
+        end
+
+        it 'still rejects blank values' do
+          expect(extractor.send(:valid_uuid?, '')).to be false
+          expect(extractor.send(:valid_uuid?, nil)).to be false
         end
       end
     end

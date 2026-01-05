@@ -1,4 +1,6 @@
 # lib/correlation_tracker/integrations/http_clients/faraday.rb
+return unless defined?(Faraday)
+
 module CorrelationTracker
   module Integrations
     module HttpClients
