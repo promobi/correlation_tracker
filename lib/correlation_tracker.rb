@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 # lib/correlation_tracker.rb
 require 'active_support'
 require 'active_support/core_ext'
@@ -292,11 +294,11 @@ module CorrelationTracker
       Context.reset
 
       # Define known predefined attributes
-      known_attributes = [
-        :correlation_id, :parent_correlation_id, :origin_type,
-        :user_id, :customer_id, :job_name, :webhook_source,
-        :external_request_id, :email_type, :device_id, :task_type,
-        :kafka_topic, :kafka_partition, :kafka_offset
+      known_attributes = %i[
+        correlation_id parent_correlation_id origin_type
+        user_id customer_id job_name webhook_source
+        external_request_id email_type device_id task_type
+        kafka_topic kafka_partition kafka_offset
       ]
 
       # Separate metadata from predefined attributes

@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 # spec/correlation_tracker_spec.rb
 require 'spec_helper'
 
@@ -159,11 +161,11 @@ RSpec.describe CorrelationTracker do
     it 'restores context even if block raises error' do
       CorrelationTracker.set(correlation_id: 'original')
 
-      expect {
+      expect do
         CorrelationTracker.with_correlation(correlation_id: 'temporary') do
           raise 'test error'
         end
-      }.to raise_error('test error')
+      end.to raise_error('test error')
 
       expect(CorrelationTracker.current_id).to eq('original')
     end
@@ -283,7 +285,7 @@ RSpec.describe CorrelationTracker do
         customer_id: 'cust-1'
       )
 
-      expect {
+      expect do
         CorrelationTracker.with_correlation(
           correlation_id: 'id-2',
           user_id: 200,
@@ -291,7 +293,7 @@ RSpec.describe CorrelationTracker do
         ) do
           raise 'test error'
         end
-      }.to raise_error('test error')
+      end.to raise_error('test error')
 
       # All attributes should be restored despite exception
       expect(CorrelationTracker.current_id).to eq('id-1')
