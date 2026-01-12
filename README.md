@@ -2,6 +2,9 @@
 
 Track requests across microservices with correlation IDs. Seamlessly integrates with Rails, Sidekiq, Kafka, and popular HTTP clients.
 
+> 🤖 **AI Disclosure:** This project is 100% AI-generated code. All Ruby code, documentation, and configurations were written by Claude (Anthropic) via [Claude CLI](https://github.com/anthropics/claude-code) with MCP tools. My role is ideation, direction, testing, and learning. The code is reviewed and tested, not blindly accepted. This project is partly a learning exercise in exploring AI-assisted development.
+
+
 ## Features
 
 - 🔄 **Automatic Propagation** - Correlation IDs flow through HTTP, jobs, and message queues
