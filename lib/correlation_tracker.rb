@@ -21,8 +21,6 @@ require 'correlation_tracker/middleware/correlation_middleware'
 # Load integrations
 require 'correlation_tracker/integrations'
 
-require 'correlation_tracker/railtie' if defined?(Rails::Railtie)
-
 # CorrelationTracker provides distributed request tracing across microservices
 # by automatically propagating correlation IDs through HTTP requests, background
 # jobs, and message queues.
@@ -322,3 +320,5 @@ module CorrelationTracker
     end
   end
 end
+
+require 'correlation_tracker/railtie' if defined?(Rails::Railtie)
