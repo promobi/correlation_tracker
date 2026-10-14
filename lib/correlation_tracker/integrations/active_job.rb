@@ -32,15 +32,35 @@ module CorrelationTracker
     module ActiveJob
       extend ActiveSupport::Concern
 
+      # Keys the correlation travels under in the job's serialized data, next to ActiveJob's own
+      # ("job_class", "arguments", ...). Never in the arguments: perform gets exactly what was
+      # passed to perform_later.
+      CORRELATION_KEYS = %w[correlation_id parent_correlation_id].freeze
+
       included do
+        attr_accessor :tracked_correlation_id, :tracked_parent_correlation_id
+
         around_perform :with_correlation_tracking
         before_enqueue :attach_correlation_to_job
+      end
+
+      def serialize
+        super.merge(
+          'correlation_id' => tracked_correlation_id,
+          'parent_correlation_id' => tracked_parent_correlation_id
+        )
+      end
+
+      def deserialize(job_data)
+        super
+        self.tracked_correlation_id = job_data['correlation_id']
+        self.tracked_parent_correlation_id = job_data['parent_correlation_id']
       end
 
       private
 
       def with_correlation_tracking
-        # Extract correlation from arguments
+        # Extract correlation from the job data, or from a job queued by an older version
         correlation_context = extract_correlation_context
 
         CorrelationTracker.set(
@@ -66,26 +86,32 @@ module CorrelationTracker
       end
 
       def attach_correlation_to_job
-        # Automatically attach current correlation to job arguments if not present
-        unless has_correlation_in_args?
-          arguments << {
-            correlation_id: CorrelationTracker.current_id || CorrelationTracker.generate_id,
-            parent_correlation_id: CorrelationTracker.current_id
-          }
-        end
+        # Keep the correlation the job already has, as on a retry
+        return if tracked_correlation_id
+
+        self.tracked_correlation_id = CorrelationTracker.current_id || CorrelationTracker.generate_id
+        self.tracked_parent_correlation_id = CorrelationTracker.current_id
       end
 
-      def has_correlation_in_args?
-        arguments.any? { |arg| arg.is_a?(Hash) && arg.key?(:correlation_id) }
-      end
-
+      # The correlation for this run. A job queued by an older version of this gem carries it as
+      # an extra last argument instead; that argument is taken off here, before perform, which
+      # would otherwise get one argument too many.
       def extract_correlation_context
-        args_hash = arguments.find { |arg| arg.is_a?(Hash) && arg.key?(:correlation_id) }
+        legacy = take_legacy_correlation_argument
 
         {
-          correlation_id: args_hash&.dig(:correlation_id),
-          parent_correlation_id: args_hash&.dig(:parent_correlation_id)
+          correlation_id: tracked_correlation_id || legacy&.dig(:correlation_id),
+          parent_correlation_id: tracked_parent_correlation_id || legacy&.dig(:parent_correlation_id)
         }
+      end
+
+      # The trailing Hash older versions appended, which holds these two keys and nothing else.
+      def take_legacy_correlation_argument
+        last = arguments.last
+        return unless last.is_a?(Hash) && last.key?(:correlation_id) &&
+                      (last.keys - %i[correlation_id parent_correlation_id]).empty?
+
+        arguments.pop
       end
 
       def log_job_event(event_type, **extra_data)

@@ -26,6 +26,17 @@ RSpec.describe CorrelationTracker::Integrations::ActiveJob do
     end
   end
 
+  # A job whose perform takes exactly the arguments it was given, as most jobs do.
+  class FixedArityJob < ActiveJob::Base
+    include CorrelationTracker::Integrations::ActiveJob
+
+    cattr_accessor :received
+
+    def perform(device_id, message)
+      self.class.received = [device_id, message, CorrelationTracker.current_id]
+    end
+  end
+
   let(:job) { TestJob.new }
 
   describe 'included hooks' do
@@ -47,26 +58,24 @@ RSpec.describe CorrelationTracker::Integrations::ActiveJob do
   end
 
   describe '#attach_correlation_to_job' do
-    it 'attaches correlation to job arguments' do
+    it 'attaches the correlation to the job, not to its arguments' do
       CorrelationTracker.set(correlation_id: 'test-123')
 
       job.arguments = ['arg1', 'arg2']
       job.send(:attach_correlation_to_job)
 
-      correlation_arg = job.arguments.find { |arg| arg.is_a?(Hash) && arg.key?(:correlation_id) }
-
-      expect(correlation_arg).not_to be_nil
-      expect(correlation_arg[:correlation_id]).to eq('test-123')
-      expect(correlation_arg[:parent_correlation_id]).to eq('test-123')
+      expect(job.arguments).to eq(['arg1', 'arg2'])
+      expect(job.tracked_correlation_id).to eq('test-123')
+      expect(job.tracked_parent_correlation_id).to eq('test-123')
     end
 
-    it 'does not add correlation if already present' do
-      job.arguments = ['arg1', { correlation_id: 'existing-123' }]
+    it 'keeps a correlation the job already has, as on a retry' do
+      CorrelationTracker.set(correlation_id: 'new-456')
+      job.tracked_correlation_id = 'existing-123'
 
-      original_count = job.arguments.count
       job.send(:attach_correlation_to_job)
 
-      expect(job.arguments.count).to eq(original_count)
+      expect(job.tracked_correlation_id).to eq('existing-123')
     end
 
     it 'generates new correlation if none exists' do
@@ -75,15 +84,14 @@ RSpec.describe CorrelationTracker::Integrations::ActiveJob do
       job.arguments = ['arg1']
       job.send(:attach_correlation_to_job)
 
-      correlation_arg = job.arguments.find { |arg| arg.is_a?(Hash) && arg.key?(:correlation_id) }
-
-      expect(correlation_arg[:correlation_id]).to match(/\A[0-9a-f-]{36}\z/i)
+      expect(job.tracked_correlation_id).to match(/\A[0-9a-f-]{36}\z/i)
     end
   end
 
   describe '#extract_correlation_context' do
-    it 'extracts correlation from arguments' do
-      job.arguments = ['arg1', { correlation_id: 'test-123', parent_correlation_id: 'parent-456' }]
+    it 'extracts correlation from the job' do
+      job.tracked_correlation_id = 'test-123'
+      job.tracked_parent_correlation_id = 'parent-456'
 
       context = job.send(:extract_correlation_context)
 
@@ -91,7 +99,25 @@ RSpec.describe CorrelationTracker::Integrations::ActiveJob do
       expect(context[:parent_correlation_id]).to eq('parent-456')
     end
 
-    it 'returns empty hash if no correlation in arguments' do
+    it 'extracts it from the last argument of a job queued by an older version, and removes it' do
+      job.arguments = ['arg1', { correlation_id: 'test-123', parent_correlation_id: 'parent-456' }]
+
+      context = job.send(:extract_correlation_context)
+
+      expect(context[:correlation_id]).to eq('test-123')
+      expect(context[:parent_correlation_id]).to eq('parent-456')
+      expect(job.arguments).to eq(['arg1'])
+    end
+
+    it "leaves a Hash argument that is the job's own alone" do
+      job.arguments = [{ correlation_id: 'mine', order_id: 9 }]
+
+      job.send(:extract_correlation_context)
+
+      expect(job.arguments).to eq([{ correlation_id: 'mine', order_id: 9 }])
+    end
+
+    it 'returns nil values if there is no correlation' do
       job.arguments = ['arg1', 'arg2']
 
       context = job.send(:extract_correlation_context)
@@ -194,6 +220,47 @@ RSpec.describe CorrelationTracker::Integrations::ActiveJob do
       enqueued_job.send(:with_correlation_tracking) do
         expect(CorrelationTracker.current_id).to eq('enqueue-123')
       end
+    end
+  end
+
+  describe 'a job with a fixed argument list' do
+    before do
+      allow(Rails).to receive(:logger).and_return(double(info: nil, error: nil))
+      FixedArityJob.received = nil
+    end
+
+    it 'gets exactly its own arguments, and the correlation ID through the job data' do
+      CorrelationTracker.set(correlation_id: 'enqueue-123')
+      job = FixedArityJob.new(42, 'hello')
+      job.send(:attach_correlation_to_job)
+      data = job.serialize
+      CorrelationTracker.reset!
+
+      ActiveJob::Base.execute(data)
+
+      expect(FixedArityJob.received).to eq([42, 'hello', 'enqueue-123'])
+    end
+
+    it 'keeps the parent correlation ID through serialization' do
+      CorrelationTracker.set(correlation_id: 'parent-1')
+      job = FixedArityJob.new(1, 'x')
+      job.send(:attach_correlation_to_job)
+
+      data = job.serialize
+      expect(data['correlation_id']).to eq('parent-1')
+      expect(data['parent_correlation_id']).to eq('parent-1')
+      expect(data['arguments'].size).to eq(2)
+    end
+
+    it 'still reads a job queued by the old version, with the correlation in its arguments' do
+      CorrelationTracker.reset!
+      data = FixedArityJob.new(7, 'old', { correlation_id: 'legacy-1', parent_correlation_id: 'legacy-0' }).serialize
+      data.delete('correlation_id')
+      data.delete('parent_correlation_id')
+
+      ActiveJob::Base.execute(data)
+
+      expect(FixedArityJob.received).to eq([7, 'old', 'legacy-1'])
     end
   end
 end

@@ -9,6 +9,9 @@ group :development, :test do
 end
 
 group :test do
+  # No longer default gems in Ruby 4; the specs use them.
+  gem 'ostruct'
+  gem 'benchmark'
   gem 'sidekiq', '~> 7.0'
   gem 'ruby-kafka', '~> 1.5'
   gem 'faraday', '~> 2.7'

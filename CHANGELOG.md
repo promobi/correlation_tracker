@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] - 2026-10-14
+
+### Fixed
+- ActiveJob: the correlation travels in the job's own data (`correlation_id` and
+  `parent_correlation_id` beside `arguments`), no longer as an extra last argument. Every job
+  whose `perform` takes a fixed list of arguments failed with "wrong number of arguments".
+  A job queued by 1.0.0 still runs: its extra argument is read and removed before `perform`.
+
+### Changed
+- The test group needs `ostruct` and `benchmark`, which are no longer default gems in Ruby 4.
+
 ## [1.0.0] - 2024-12-30
 
 ### Added
